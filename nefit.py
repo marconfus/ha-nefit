@@ -64,7 +64,7 @@ class NefitThermostat(ClimateDevice):
         self._password = password
         self._unit_of_measurement = TEMP_CELSIUS
         self._data = {}
-        self._new_target_temperature = None
+        self._year_total = {}
 
         _LOGGER.debug("Constructor for {} called.".format(self._name))
 
@@ -101,8 +101,8 @@ class NefitThermostat(ClimateDevice):
         if data:
             self._data = data
 
-        # data = self._client.get_year_total()
-        # _LOGGER.debug("year_total={}".format(data))
+        self._year_total = self._client.get_year_total()
+        _LOGGER.debug("year_total={}".format(self._year_total))
         #
         # data = self._client.get("/ecus/rrc/recordings/gasusagePointer")
         # p = data.get("value")
@@ -155,6 +155,18 @@ class NefitThermostat(ClimateDevice):
         else:
             self._client.put('/heatingCircuits/hc1/usermode', {'value': 'clock'})
 
+    @property
+    def device_state_attributes(self):
+        """Return the device specific state attributes."""
+        dev_specific = {
+            "boiler_indicator": self._data.get("boiler indicator"),
+            "control": self._data.get("control"),
+        }
+        if self._year_total:
+            dev_specific["year_total"] = self._year_total.get("value")
+            dev_specific["year_total_unit_of_measure"] = self._year_total.get("unitOfMeasure")
+
+        return dev_specific
 
     def _shutdown(self, event):
         _LOGGER.debug("shutdown")
