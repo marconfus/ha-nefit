@@ -102,16 +102,12 @@ class NefitThermostat(ClimateDevice):
             self._data = data
 
         self._year_total = self._client.get_year_total()
-        _LOGGER.debug("year_total={}".format(self._year_total))
-        #
-        # data = self._client.get("/ecus/rrc/recordings/gasusagePointer")
-        # p = data.get("value")
-        # if p:
-        #     page = math.ceil(p / 32)
-        #     data = self._client.get("/ecus/rrc/recordings/gasusage?page={}".format(page))
-        #
-        # data = self._client.get("/heatingCircuits/hc1/actualSupplyTemperature")
 
+        r = self._client.get("/ecus/rrc/dayassunday/day10/active")
+        self._today_as_sunday = (r.get("value") == "on")
+
+        r = self._client.get("/ecus/rrc/dayassunday/day11/active")
+        self._tomorrow_as_sunday = (r.get("value") == "on")
 
     @property
     def current_temperature(self):
@@ -142,10 +138,6 @@ class NefitThermostat(ClimateDevice):
 
         self._client.set_temperature(temperature)
 
-    @property
-    def boiler_indicator(self):
-        _LOGGER.debug("boiler_indicator called.")
-        return self._data.get('boiler indicator', None)
 
     def set_operation_mode(self, operation_mode):
         """Set new target operation mode."""
@@ -161,6 +153,8 @@ class NefitThermostat(ClimateDevice):
         dev_specific = {
             "boiler_indicator": self._data.get("boiler indicator"),
             "control": self._data.get("control"),
+            "today_as_sunday": self._today_as_sunday,
+            "tomorrow_as_sunday": self._tomorrow_as_sunday,
         }
         if self._year_total:
             dev_specific["year_total"] = self._year_total.get("value")
