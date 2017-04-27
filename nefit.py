@@ -64,7 +64,8 @@ class NefitThermostat(ClimateDevice):
         self._password = password
         self._unit_of_measurement = TEMP_CELSIUS
         self._data = {}
-        self._year_total = {}
+        self._attributes = {}
+        self._attributes["device_error_count"] = 0
 
         _LOGGER.debug("Constructor for {} called.".format(self._name))
 
@@ -97,17 +98,36 @@ class NefitThermostat(ClimateDevice):
         """Get latest data"""
         _LOGGER.debug("update called.")
         data = self._client.get_status()
+
         _LOGGER.debug("update finished. result={}".format(data))
+        if type(data) is dict and "user mode" in data:
+            self._attributes["device_state"] = "ok"
+        else:
+            self._attributes["connection_state"] = "error"
+            self._attributes["connection_error_count"] += self._attributes["device_error_count"]
+
         if data:
             self._data = data
 
-        self._year_total = self._client.get_year_total()
+        self._attributes["boiler_indicator"] = self._data.get("boiler indicator")
+        self._attributes["control"] = self._data.get("control")
+
+        r = self._client.get_year_total()
+        self._attributes["year_total"] = r.get("value")
+        self._attributes["year_total_unit_of_measure"] = r.get("unitOfMeasure")
+
+        r = self._client.get("/ecus/rrc/userprogram/activeprogram")
+        self._attributes["active_program"] = r.get("value")
 
         r = self._client.get("/ecus/rrc/dayassunday/day10/active")
-        self._today_as_sunday = (r.get("value") == "on")
+        self._attributes["today_as_sunday"] = (r.get("value") == "on")
 
         r = self._client.get("/ecus/rrc/dayassunday/day11/active")
-        self._tomorrow_as_sunday = (r.get("value") == "on")
+        self._attributes["tomorrow_as_sunday"] = (r.get("value") == "on")
+
+        r = self._client.get("/system/appliance/systemPressure")
+        self._attributes["system_pressure"] = r.get("value")
+
 
     @property
     def current_temperature(self):
@@ -150,17 +170,8 @@ class NefitThermostat(ClimateDevice):
     @property
     def device_state_attributes(self):
         """Return the device specific state attributes."""
-        dev_specific = {
-            "boiler_indicator": self._data.get("boiler indicator"),
-            "control": self._data.get("control"),
-            "today_as_sunday": self._today_as_sunday,
-            "tomorrow_as_sunday": self._tomorrow_as_sunday,
-        }
-        if self._year_total:
-            dev_specific["year_total"] = self._year_total.get("value")
-            dev_specific["year_total_unit_of_measure"] = self._year_total.get("unitOfMeasure")
 
-        return dev_specific
+        return self._attributes
 
     def _shutdown(self, event):
         _LOGGER.debug("shutdown")
