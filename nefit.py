@@ -65,7 +65,7 @@ class NefitThermostat(ClimateDevice):
         self._unit_of_measurement = TEMP_CELSIUS
         self._data = {}
         self._attributes = {}
-        self._attributes["device_error_count"] = 0
+        self._attributes["connection_error_count"] = 0
 
         _LOGGER.debug("Constructor for {} called.".format(self._name))
 
@@ -101,10 +101,10 @@ class NefitThermostat(ClimateDevice):
 
         _LOGGER.debug("update finished. result={}".format(data))
         if type(data) is dict and "user mode" in data:
-            self._attributes["device_state"] = "ok"
+            self._attributes["connection_state"] = "ok"
         else:
             self._attributes["connection_state"] = "error"
-            self._attributes["connection_error_count"] += self._attributes["device_error_count"]
+            self._attributes["connection_error_count"] += self._attributes["connection_error_count"]
 
         if data:
             self._data = data
