@@ -128,6 +128,11 @@ class NefitThermostat(ClimateDevice):
         r = self._client.get("/system/appliance/systemPressure")
         self._attributes["system_pressure"] = r.get("value")
 
+        r = self._client.get("/heatingCircuits/hc1/actualSupplyTemperature")
+        self._attributes["supply_temp"] = r.get("value")
+
+        r = self._client.get("/system/sensors/temperatures/outdoor_t1")
+        self._attributes["outside_temp"] = r.get("value")
 
     @property
     def current_temperature(self):
