@@ -97,7 +97,10 @@ class NefitThermostat(ClimateDevice):
     def update(self):
         """Get latest data"""
         _LOGGER.debug("update called.")
-        data = self._client.get_status()
+        try:
+            data = self._client.get_status()
+        except:
+            _LOGGER.error('Unkown error: Nefit api (get_status) returned invalid data')
 
         _LOGGER.debug("update finished. result={}".format(data))
         if type(data) is dict and "user mode" in data:
@@ -112,27 +115,48 @@ class NefitThermostat(ClimateDevice):
         self._attributes["boiler_indicator"] = self._data.get("boiler indicator")
         self._attributes["control"] = self._data.get("control")
 
-        r = self._client.get_year_total()
-        self._attributes["year_total"] = r.get("value")
-        self._attributes["year_total_unit_of_measure"] = r.get("unitOfMeasure")
+        try:
+            r = self._client.get_year_total()
+            self._attributes["year_total"] = r.get("value")
+            self._attributes["year_total_unit_of_measure"] = r.get("unitOfMeasure")
+        except:
+            _LOGGER.error('Unkown error: Nefit api (get_year_total) returned invalid data')
 
-        r = self._client.get("/ecus/rrc/userprogram/activeprogram")
-        self._attributes["active_program"] = r.get("value")
+        try:
+            r = self._client.get("/ecus/rrc/userprogram/activeprogram")
+            self._attributes["active_program"] = r.get("value")
+        except:
+            _LOGGER.error('Unkown error: Nefit api (active_program) returned invalid data')
 
-        r = self._client.get("/ecus/rrc/dayassunday/day10/active")
-        self._attributes["today_as_sunday"] = (r.get("value") == "on")
+        try:
+            r = self._client.get("/ecus/rrc/dayassunday/day10/active")
+            self._attributes["today_as_sunday"] = (r.get("value") == "on")
+        except:
+            _LOGGER.error('Unkown error: Nefit api (today_as_sunday) returned invalid data')
 
-        r = self._client.get("/ecus/rrc/dayassunday/day11/active")
-        self._attributes["tomorrow_as_sunday"] = (r.get("value") == "on")
+        try:
+            r = self._client.get("/ecus/rrc/dayassunday/day11/active")
+            self._attributes["tomorrow_as_sunday"] = (r.get("value") == "on")
+        except:
+            _LOGGER.error('Unkown error: Nefit api (tomorrow_as_sunday) returned invalid data')
 
-        r = self._client.get("/system/appliance/systemPressure")
-        self._attributes["system_pressure"] = r.get("value")
+        try:
+            r = self._client.get("/system/appliance/systemPressure")
+            self._attributes["system_pressure"] = r.get("value")
+        except:
+            _LOGGER.error('Unkown error: Nefit api (system_pressure) returned invalid data')
 
-        r = self._client.get("/heatingCircuits/hc1/actualSupplyTemperature")
-        self._attributes["supply_temp"] = r.get("value")
+        try:
+            r = self._client.get("/heatingCircuits/hc1/actualSupplyTemperature")
+            self._attributes["supply_temp"] = r.get("value")
+        except:
+            _LOGGER.error('Unkown error: Nefit api (supply_temp) returned invalid data')
 
-        r = self._client.get("/system/sensors/temperatures/outdoor_t1")
-        self._attributes["outside_temp"] = r.get("value")
+        try:
+            r = self._client.get("/system/sensors/temperatures/outdoor_t1")
+            self._attributes["outside_temp"] = r.get("value")
+        except:
+            _LOGGER.error('Unkown error: Nefit api (outside_temp) returned invalid data')
 
     @property
     def current_temperature(self):
