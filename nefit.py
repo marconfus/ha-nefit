@@ -99,21 +99,21 @@ class NefitThermostat(ClimateDevice):
         _LOGGER.debug("update called.")
         try:
             data = self._client.get_status()
+            _LOGGER.debug("update finished. result={}".format(data))
+
+            if type(data) is dict and "user mode" in data:
+                self._attributes["connection_state"] = "ok"
+            else:
+                self._attributes["connection_state"] = "error"
+                self._attributes["connection_error_count"] += self._attributes["connection_error_count"]
+
+            if data:
+                self._data = data
+
+            self._attributes["boiler_indicator"] = self._data.get("boiler indicator")
+            self._attributes["control"] = self._data.get("control")
         except:
             _LOGGER.error('Unkown error: Nefit api (get_status) returned invalid data')
-
-        _LOGGER.debug("update finished. result={}".format(data))
-        if type(data) is dict and "user mode" in data:
-            self._attributes["connection_state"] = "ok"
-        else:
-            self._attributes["connection_state"] = "error"
-            self._attributes["connection_error_count"] += self._attributes["connection_error_count"]
-
-        if data:
-            self._data = data
-
-        self._attributes["boiler_indicator"] = self._data.get("boiler indicator")
-        self._attributes["control"] = self._data.get("control")
 
         try:
             r = self._client.get_year_total()
