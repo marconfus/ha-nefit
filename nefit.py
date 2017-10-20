@@ -66,6 +66,8 @@ class NefitThermostat(ClimateDevice):
         self._data = {}
         self._attributes = {}
         self._attributes["connection_error_count"] = 0
+        self.override_target_temp = False
+        self.new_target_temp = 0
 
         _LOGGER.debug("Constructor for {} called.".format(self._name))
 
@@ -176,17 +178,33 @@ class NefitThermostat(ClimateDevice):
 
     @property
     def target_temperature(self):
-        return self._data.get('temp setpoint', None)
+
+        #update happens too fast after setting new target, so value is not changed on server yet.
+        #assume for this first update that the set target was succesful
+        if self.override_target_temp:
+            self._target_temperature = self.new_target_temp
+            self.override_target_temp = False
+        else:
+            self._target_temperature = self._data.get('temp setpoint', None)
+
+        return self._target_temperature
 
     def set_temperature(self, **kwargs):
         """Set new target temperature."""
-        temperature = kwargs.get(ATTR_TEMPERATURE)
-        _LOGGER.debug("set_temperature called (temperature={}).".format(temperature))
-        if temperature is None:
-            return None
+        try:
+            temperature = kwargs.get(ATTR_TEMPERATURE)
+            _LOGGER.debug("set_temperature called (temperature={}).".format(temperature))
 
-        self._client.set_temperature(temperature)
+            if temperature is None:
+                return None
 
+            self._client.set_temperature(temperature)
+
+            self.override_target_temp = True
+            self.new_target_temp = temperature
+
+        except:
+            _LOGGER.error("Error setting target temperature")
 
     def set_operation_mode(self, operation_mode):
         """Set new target operation mode."""
