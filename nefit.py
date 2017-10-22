@@ -66,6 +66,8 @@ class NefitThermostat(ClimateDevice):
         self._data = {}
         self._attributes = {}
         self._attributes["connection_error_count"] = 0
+        self.override_target_temp = False
+        self.new_target_temp = 0
 
         _LOGGER.debug("Constructor for {} called.".format(self._name))
 
@@ -97,6 +99,8 @@ class NefitThermostat(ClimateDevice):
     def update(self):
         """Get latest data"""
         _LOGGER.debug("update called.")
+        errors = []
+
         try:
             data = self._client.get_status()
             _LOGGER.debug("update finished. result={}".format(data))
@@ -113,50 +117,53 @@ class NefitThermostat(ClimateDevice):
             self._attributes["boiler_indicator"] = self._data.get("boiler indicator")
             self._attributes["control"] = self._data.get("control")
         except:
-            _LOGGER.error('Unkown error: Nefit api (get_status) returned invalid data')
+            errors.append('get_status')
 
         try:
             r = self._client.get_year_total()
             self._attributes["year_total"] = r.get("value")
             self._attributes["year_total_unit_of_measure"] = r.get("unitOfMeasure")
         except:
-            _LOGGER.error('Unkown error: Nefit api (get_year_total) returned invalid data')
+            errors.append('get_year_total')
 
         try:
             r = self._client.get("/ecus/rrc/userprogram/activeprogram")
             self._attributes["active_program"] = r.get("value")
         except:
-            _LOGGER.error('Unkown error: Nefit api (active_program) returned invalid data')
+            errors.append('active_program')
 
         try:
             r = self._client.get("/ecus/rrc/dayassunday/day10/active")
             self._attributes["today_as_sunday"] = (r.get("value") == "on")
         except:
-            _LOGGER.error('Unkown error: Nefit api (today_as_sunday) returned invalid data')
+            errors.append('today_as_sunday')
 
         try:
             r = self._client.get("/ecus/rrc/dayassunday/day11/active")
             self._attributes["tomorrow_as_sunday"] = (r.get("value") == "on")
         except:
-            _LOGGER.error('Unkown error: Nefit api (tomorrow_as_sunday) returned invalid data')
+            errors.append('tomorrow_as_sunday')
 
         try:
             r = self._client.get("/system/appliance/systemPressure")
             self._attributes["system_pressure"] = r.get("value")
         except:
-            _LOGGER.error('Unkown error: Nefit api (system_pressure) returned invalid data')
+            errors.append('system_pressure')
 
         try:
             r = self._client.get("/heatingCircuits/hc1/actualSupplyTemperature")
             self._attributes["supply_temp"] = r.get("value")
         except:
-            _LOGGER.error('Unkown error: Nefit api (supply_temp) returned invalid data')
+            errors.append('supply_temp')
 
         try:
             r = self._client.get("/system/sensors/temperatures/outdoor_t1")
             self._attributes["outside_temp"] = r.get("value")
         except:
-            _LOGGER.error('Unkown error: Nefit api (outside_temp) returned invalid data')
+            errors.append('outside_temp')
+
+        if len(errors) > 0:
+            _LOGGER.warning('Nefit api returned invalid data for: {}'.format(','.join(errors)))
 
     @property
     def current_temperature(self):
@@ -176,17 +183,33 @@ class NefitThermostat(ClimateDevice):
 
     @property
     def target_temperature(self):
-        return self._data.get('temp setpoint', None)
+
+        #update happens too fast after setting new target, so value is not changed on server yet.
+        #assume for this first update that the set target was succesful
+        if self.override_target_temp:
+            self._target_temperature = self.new_target_temp
+            self.override_target_temp = False
+        else:
+            self._target_temperature = self._data.get('temp setpoint', None)
+
+        return self._target_temperature
 
     def set_temperature(self, **kwargs):
         """Set new target temperature."""
-        temperature = kwargs.get(ATTR_TEMPERATURE)
-        _LOGGER.debug("set_temperature called (temperature={}).".format(temperature))
-        if temperature is None:
-            return None
+        try:
+            temperature = kwargs.get(ATTR_TEMPERATURE)
+            _LOGGER.debug("set_temperature called (temperature={}).".format(temperature))
 
-        self._client.set_temperature(temperature)
+            if temperature is None:
+                return None
 
+            self._client.set_temperature(temperature)
+
+            self.override_target_temp = True
+            self.new_target_temp = temperature
+
+        except:
+            _LOGGER.error("Error setting target temperature")
 
     def set_operation_mode(self, operation_mode):
         """Set new target operation mode."""
