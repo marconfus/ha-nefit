@@ -32,6 +32,7 @@ CONF_SERIAL = "serial"
 CONF_ACCESSKEY = "accesskey"
 CONF_PASSWORD = "password"
 
+STATE_HOTWATER = "hot water"
 STATE_MANUAL = "manual"
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
@@ -151,10 +152,13 @@ class NefitThermostat(ClimateDevice):
 
     @property
     def current_operation(self):
-        if self._data.get('user mode') == "manual":
-            return STATE_MANUAL
-        elif self._data.get('user mode') == "clock":
-            return STATE_AUTO
+        state = self._data.get("boiler indicator")
+        if state == 'central heating':
+            return STATE_HEAT
+        elif state == 'hot water':
+            return STATE_HOTWATER
+        elif state == 'off':
+            return STATE_IDLE
         else:
             return None
 
