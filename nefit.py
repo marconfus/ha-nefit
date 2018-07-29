@@ -119,9 +119,10 @@ class NefitThermostat(ClimateDevice):
             self._attributes["control"] = self._data.get("control")
 
 
-            r = self._client.get_year_total()
-            self._attributes["year_total"] = r.get("value")
-            self._attributes["year_total_unit_of_measure"] = r.get("unitOfMeasure")
+            year_total,year_total_uom = self._client.get_year_total()
+            _LOGGER.debug("Fetched get_year_total: {} {}".format(year_total,year_total_uom))
+            self._attributes["year_total"] = year_total
+            self._attributes["year_total_unit_of_measure"] = year_total_uom
 
             r = self._client.get("/ecus/rrc/userprogram/activeprogram")
             self._attributes["active_program"] = r.get("value")
@@ -140,9 +141,9 @@ class NefitThermostat(ClimateDevice):
 
             r = self._client.get("/system/sensors/temperatures/outdoor_t1")
             self._attributes["outside_temp"] = r.get("value")
-        except:
-            _LOGGER.warning('Nefit api returned invalid data')
-
+        except Exception as e:
+            _LOGGER.warning('Nefit api returned invalid data: {}'.format(e))
+            
     @property
     def current_temperature(self):
         """Return the current temperature."""
