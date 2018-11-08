@@ -141,6 +141,9 @@ class NefitThermostat(ClimateDevice):
 
             r = self._client.get("/system/sensors/temperatures/outdoor_t1")
             self._attributes["outside_temp"] = r.get("value")
+            
+            dc = self._client.get_display_code()
+            self._attributes["display_code"] = dc
         except Exception as e:
             _LOGGER.warning('Nefit api returned invalid data: {}'.format(e))
             
