@@ -9,15 +9,15 @@ https://github.com/patvdleer/nefit-client-python
 REQUIREMENTS = ['nefit-client']
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 import math
 #import asyncio
 import voluptuous as vol
 import homeassistant.helpers.config_validation as cv
 
 from homeassistant.components.climate import ( ClimateDevice, PLATFORM_SCHEMA,
-    STATE_AUTO, STATE_HEAT, STATE_IDLE,
-    SUPPORT_TARGET_TEMPERATURE, SUPPORT_OPERATION_MODE )
+    STATE_AUTO, STATE_MANUAL, STATE_IDLE,
+    SUPPORT_TARGET_TEMPERATURE, SUPPORT_OPERATION_MODE, SUPPORT_ON_OFF )
 from homeassistant.const import TEMP_CELSIUS, ATTR_TEMPERATURE
 from homeassistant.const import STATE_UNKNOWN, EVENT_HOMEASSISTANT_STOP
 
@@ -25,15 +25,18 @@ from nefit import NefitClient
 
 _LOGGER = logging.getLogger(__name__)
 
-SUPPORT_FLAGS = (SUPPORT_TARGET_TEMPERATURE | SUPPORT_OPERATION_MODE)
+SUPPORT_FLAGS = (SUPPORT_TARGET_TEMPERATURE | SUPPORT_OPERATION_MODE | SUPPORT_ON_OFF)
 
 CONF_NAME = "name"
 CONF_SERIAL = "serial"
 CONF_ACCESSKEY = "accesskey"
 CONF_PASSWORD = "password"
 
-STATE_HOTWATER = "hot water"
-STATE_MANUAL = "manual"
+OPERATION_MANUAL = "heat"
+OPERATION_AUTO = "auto"
+OPERATION_HOLIDAY = "off"
+
+DATE_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_NAME): cv.string,
@@ -67,8 +70,11 @@ class NefitThermostat(ClimateDevice):
         self._data = {}
         self._attributes = {}
         self._attributes["connection_error_count"] = 0
+        self._operation_list = [OPERATION_MANUAL, OPERATION_AUTO, OPERATION_HOLIDAY]
         self.override_target_temp = False
         self.new_target_temp = 0
+        self._manual = False
+        self._holiday_mode = False
 
         _LOGGER.debug("Constructor for {} called.".format(self._name))
 
@@ -95,7 +101,7 @@ class NefitThermostat(ClimateDevice):
     @property
     def operation_list(self):
         """List of available operation modes."""
-        return [STATE_AUTO, STATE_MANUAL]
+        return self._operation_list
 
     def update(self):
         """Get latest data"""
@@ -108,6 +114,7 @@ class NefitThermostat(ClimateDevice):
 
             if type(data) is dict and "user mode" in data:
                 self._attributes["connection_state"] = "ok"
+                self._manual = (data.get("user mode") == "manual")
             else:
                 self._attributes["connection_state"] = "error"
                 self._attributes["connection_error_count"] += self._attributes["connection_error_count"]
@@ -141,7 +148,10 @@ class NefitThermostat(ClimateDevice):
 
             r = self._client.get("/system/sensors/temperatures/outdoor_t1")
             self._attributes["outside_temp"] = r.get("value")
-            
+
+            r = self._client.get("/heatingCircuits/hc1/holidayMode/activated")
+            self._holiday_mode = (r.get("value") == "on")
+
             dc = self._client.get_display_code()
             self._attributes["display_code"] = dc
         except Exception as e:
@@ -152,19 +162,16 @@ class NefitThermostat(ClimateDevice):
         """Return the current temperature."""
         _LOGGER.debug("current_temperature called.")
 
-        return self._data.get('in house temp', None)
+        return self._data.get("in house temp", None)
 
     @property
     def current_operation(self):
-        state = self._data.get("boiler indicator")
-        if state == 'central heating':
-            return STATE_HEAT
-        elif state == 'hot water':
-            return STATE_HOTWATER
-        elif state == 'off':
-            return STATE_IDLE
+        if self._manual:
+            return OPERATION_MANUAL
+        elif self._holiday_mode:
+            return OPERATION_HOLIDAY
         else:
-            return None
+            return OPERATION_AUTO
 
     @property
     def target_temperature(self):
@@ -175,7 +182,7 @@ class NefitThermostat(ClimateDevice):
             self._target_temperature = self.new_target_temp
             self.override_target_temp = False
         else:
-            self._target_temperature = self._data.get('temp setpoint', None)
+            self._target_temperature = self._data.get("temp setpoint", None)
 
         return self._target_temperature
 
@@ -199,15 +206,20 @@ class NefitThermostat(ClimateDevice):
     def set_operation_mode(self, operation_mode):
         """Set new target operation mode."""
         _LOGGER.debug("set_operation_mode called mode={}.".format(operation_mode))
-        if operation_mode == "manual":
-            self._client.put('/heatingCircuits/hc1/usermode', {'value': 'manual'})
+        if operation_mode == OPERATION_HOLIDAY:
+            self.turn_holidaymode_on()
         else:
-            self._client.put('/heatingCircuits/hc1/usermode', {'value': 'clock'})
+            if self._holiday_mode:
+                self.turn_holidaymode_off()
+            if operation_mode == OPERATION_MANUAL:
+                self._client.put("/heatingCircuits/hc1/usermode", {"value": "manual"})
+            else:
+                self._client.put("/heatingCircuits/hc1/usermode", {"value": "clock"})
+        self.schedule_update_ha_state()
 
     @property
     def device_state_attributes(self):
         """Return the device specific state attributes."""
-
         return self._attributes
 
     @property
@@ -215,6 +227,34 @@ class NefitThermostat(ClimateDevice):
         """Return the list of supported features."""
         return SUPPORT_FLAGS
 
+    @property
+    def is_on(self):
+        """Return true if the device is on."""
+        return self._manual or self._holiday_mode == False
+
     def _shutdown(self, event):
         _LOGGER.debug("shutdown")
         self._client.disconnect()
+
+    def turn_on(self):
+        """Turn on."""
+        self.set_operation_mode("auto")
+        self.schedule_update_ha_state()
+
+    def turn_off(self):
+        """Turn off."""
+        self.set_operation_mode("off")
+        self.schedule_update_ha_state()
+    
+    def turn_holidaymode_on(self):
+        if self._manual:
+            self._client.put("/heatingCircuits/hc1/usermode", {"value": "clock"})
+
+        start = datetime.strptime(self._client.get("/heatingCircuits/hc1/holidayMode/start")["value"], DATE_FORMAT)
+        end = start + timedelta(days=31)
+        self._client.put("/heatingCircuits/hc1/holidayMode/activated", {"value": "on"})
+        self._client.put("/heatingCircuits/hc1/holidayMode/temperature", {"value": 7})
+        self._client.put("/heatingCircuits/hc1/holidayMode/end", {"value": end.strftime(DATE_FORMAT)})
+
+    def turn_holidaymode_off(self):
+        self._client.put("/heatingCircuits/hc1/holidayMode/activated", {"value": "off"})
