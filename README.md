@@ -17,6 +17,8 @@ climate:
   serial: 'XXXXXXXXX'
   accesskey: 'xxxxxxxxx'
   password: 'xxxxxxxxx'
+  holiday_temp: 7
+  holiday_duration: 31
 ```
 
 If any of your secrets in the configuration is numbers only, make sure to put it between quotes (`'`) to have homeassistant parse them correctly.
