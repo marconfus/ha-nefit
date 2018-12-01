@@ -6,7 +6,7 @@ Based on nefit-client-python
 https://github.com/patvdleer/nefit-client-python
 """
 
-REQUIREMENTS = ['nefit-client']
+REQUIREMENTS = ['sleekxmpp==1.3.3','pyaes==1.6.1','pyasn1==0.3.7','nefit-client==0.2.5']
 
 import logging
 from datetime import datetime, timedelta
@@ -21,8 +21,6 @@ from homeassistant.components.climate import (ClimateDevice, PLATFORM_SCHEMA,
                                               SUPPORT_OPERATION_MODE, SUPPORT_ON_OFF)
 from homeassistant.const import TEMP_CELSIUS, ATTR_TEMPERATURE
 from homeassistant.const import STATE_UNKNOWN, EVENT_HOMEASSISTANT_STOP
-
-from nefit import NefitClient
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -67,6 +65,7 @@ class NefitThermostat(ClimateDevice):
     """Representation of a NefitThermostat device."""
 
     def __init__(self, hass, name, serial, accesskey, password, holiday_temp, holiday_duration):
+        from nefit import NefitClient
         """Initialize the thermostat."""
         self.hass = hass
         self._name = name
