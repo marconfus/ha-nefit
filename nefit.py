@@ -6,7 +6,7 @@ Based on nefit-client-python
 https://github.com/patvdleer/nefit-client-python
 """
 
-REQUIREMENTS = ['sleekxmpp==1.3.3','pyaes==1.6.1','pyasn1==0.3.7','nefit-client==0.2.5']
+REQUIREMENTS = ['nefit-client==0.2.5']
 
 import logging
 from datetime import datetime, timedelta
